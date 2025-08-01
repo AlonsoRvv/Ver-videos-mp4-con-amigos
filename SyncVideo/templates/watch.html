@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Reproducción sincronizada</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            background-color: #000;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            flex-direction: column;
+        }
+        video {
+            width: 95%;
+            max-width: 800px;
+            border: 2px solid white;
+        }
+        a.back-btn {
+            margin-top: 20px;
+            color: #e50914;
+            text-decoration: none;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <video id="video" controls>
+        <source src="{{ video_url }}" type="video/mp4">
+        Tu navegador no soporta el video.
+    </video>
+    <a class="back-btn" href="/">⏪ Volver a capítulos</a>
+
+    <script>
+        const socket = io();
+        const video = document.getElementById("video");
+
+        let isSyncing = false;
+
+        function emitEvent(type) {
+            if (!isSyncing) {
+                socket.emit("video_event", {
+                    type: type,
+                    time: video.currentTime
+                });
+            }
+        }
+
+        video.addEventListener("play", () => emitEvent("play"));
+        video.addEventListener("pause", () => emitEvent("pause"));
+        video.addEventListener("seeked", () => emitEvent("seek"));
+
+        socket.on("video_event", (data) => {
+            isSyncing = true;
+
+            const syncTime = () => {
+                if (Math.abs(video.currentTime - data.time) > 0.3) {
+                    video.currentTime = data.time;
+                }
+            };
+
+            if (data.type === "play") {
+                syncTime();
+                const playPromise = video.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => console.log("Reproducción bloqueada:", e));
+                }
+            } else if (data.type === "pause") {
+                syncTime();
+                video.pause();
+            } else if (data.type === "seek") {
+                syncTime();
+            }
+
+            setTimeout(() => {
+                isSyncing = false;
+            }, 500);
+        });
+    </script>
+</body>
+</html>
